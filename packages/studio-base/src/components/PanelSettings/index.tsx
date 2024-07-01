@@ -4,6 +4,7 @@
 
 import { Divider, Typography } from "@mui/material";
 import * as _ from "lodash-es";
+import { to } from "mathjs";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useUnmount } from "react-use";
@@ -12,6 +13,10 @@ import { SettingsTree } from "@foxglove/studio";
 import { AppSetting } from "@foxglove/studio-base/AppSetting";
 import { useConfigById } from "@foxglove/studio-base/PanelAPI";
 import EmptyState from "@foxglove/studio-base/components/EmptyState";
+import {
+  getTopicToSchemaNameMap,
+  useMessagePipeline,
+} from "@foxglove/studio-base/components/MessagePipeline";
 import { ActionMenu } from "@foxglove/studio-base/components/PanelSettings/ActionMenu";
 import SettingsTreeEditor from "@foxglove/studio-base/components/SettingsTreeEditor";
 import { ShareJsonModal } from "@foxglove/studio-base/components/ShareJsonModal";
@@ -151,6 +156,8 @@ export default function PanelSettings({
 
   const extensionSettings = useExtensionCatalog(getExtensionPanelSettings);
 
+  const topicToSchemaNameMap = useMessagePipeline(getTopicToSchemaNameMap);
+
   const settingsTree = usePanelStateStore((state) => {
     if (selectedPanelId) {
       const set = state.settingsTrees[selectedPanelId];
@@ -159,9 +166,15 @@ export default function PanelSettings({
         const topicsConfig = maybeCast<{ topics: Record<string, unknown> }>(config)?.topics;
         const topicsSettings = _.merge(
           {},
-          ...topics.map((topic) => ({
-            [topic]: extensionSettings[panelType]?.[topic]?.settings(topicsConfig?.[topic]),
-          })),
+          ...topics.map((topic) => {
+            const schemaName = topicToSchemaNameMap[topic];
+            if (schemaName == undefined) {
+              return {};
+            }
+            return {
+              [topic]: extensionSettings[panelType]?.[schemaName]?.settings(topicsConfig?.[topic]),
+            };
+          }),
         );
 
         return { ...set, nodes: _.merge({}, set.nodes, { topics: { children: topicsSettings } }) };

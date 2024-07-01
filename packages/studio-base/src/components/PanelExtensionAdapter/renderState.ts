@@ -2,6 +2,7 @@
 // License, v2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/
 
+import * as _ from "lodash-es";
 import memoizeWeak from "memoize-weak";
 import { Writable } from "ts-essentials";
 
@@ -102,6 +103,11 @@ function initRenderStateBuilder(): BuildRenderStateFn {
       watchedFields,
       config,
     } = input;
+
+    const topicToSchemaNameMap = _.mapValues(
+      _.keyBy(sortedTopics, "name"),
+      ({ schemaName }) => schemaName,
+    );
 
     // Should render indicates whether any fields of render state are updated
     let shouldRender = false;
@@ -207,11 +213,15 @@ function initRenderStateBuilder(): BuildRenderStateFn {
           if (unconvertedSubscriptionTopics.has(messageEvent.topic)) {
             postProcessedFrame.push(messageEvent);
           }
-          convertMessage(
-            { ...messageEvent, topicConfig: config?.topics[messageEvent.topic] },
-            topicSchemaConverters,
-            postProcessedFrame,
-          );
+
+          const schemaName = topicToSchemaNameMap[messageEvent.topic];
+          if (schemaName) {
+            convertMessage(
+              { ...messageEvent, topicConfig: config?.topics[messageEvent.topic] },
+              topicSchemaConverters,
+              postProcessedFrame,
+            );
+          }
           lastMessageByTopic.set(messageEvent.topic, messageEvent);
         }
         renderState.currentFrame = postProcessedFrame;
@@ -221,11 +231,14 @@ function initRenderStateBuilder(): BuildRenderStateFn {
         // only the new conversions on our most recent message on each topic.
         const postProcessedFrame: MessageEvent[] = [];
         for (const messageEvent of lastMessageByTopic.values()) {
-          convertMessage(
-            { ...messageEvent, topicConfig: config?.topics[messageEvent.topic] },
-            newConverters,
-            postProcessedFrame,
-          );
+          const schemaName = topicToSchemaNameMap[messageEvent.topic];
+          if (schemaName) {
+            convertMessage(
+              { ...messageEvent, topicConfig: config?.topics[messageEvent.topic] },
+              newConverters,
+              postProcessedFrame,
+            );
+          }
         }
         renderState.currentFrame = postProcessedFrame;
         shouldRender = true;
@@ -273,11 +286,15 @@ function initRenderStateBuilder(): BuildRenderStateFn {
               if (unconvertedSubscriptionTopics.has(messageEvent.topic)) {
                 frames.push(messageEvent);
               }
-              convertMessage(
-                { ...messageEvent, topicConfig: config?.topics[messageEvent.topic] },
-                topicSchemaConverters,
-                frames,
-              );
+
+              const schemaName = topicToSchemaNameMap[messageEvent.topic];
+              if (schemaName) {
+                convertMessage(
+                  { ...messageEvent, topicConfig: config?.topics[messageEvent.topic] },
+                  topicSchemaConverters,
+                  frames,
+                );
+              }
             },
           );
         }

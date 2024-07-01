@@ -9,13 +9,13 @@
   "packageManager": "yarn@3.6.3",
   "repository": {
     "type": "git",
-    "url": "https://github.com/foxglove/studio.git"
+    "url": "https://github.com/bmw-software-engineering/foxbox"
   },
   "author": {
-    "name": "Foxglove Technologies",
+    "name": "Foxbox",
     "email": "support@foxglove.dev"
   },
-  "homepage": "https://foxglove.dev/",
+  "homepage": "https://github.com/bmw-software-engineering/foxbox",
   "engines": {
     "node": ">=16"
   },

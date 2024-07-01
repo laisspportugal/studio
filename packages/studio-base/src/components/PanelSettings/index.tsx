@@ -3,6 +3,8 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/
 
 import { Divider, Typography } from "@mui/material";
+import * as _ from "lodash-es";
+import { to } from "mathjs";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useUnmount } from "react-use";
@@ -11,6 +13,10 @@ import { SettingsTree } from "@foxglove/studio";
 import { AppSetting } from "@foxglove/studio-base/AppSetting";
 import { useConfigById } from "@foxglove/studio-base/PanelAPI";
 import EmptyState from "@foxglove/studio-base/components/EmptyState";
+import {
+  getTopicToSchemaNameMap,
+  useMessagePipeline,
+} from "@foxglove/studio-base/components/MessagePipeline";
 import { ActionMenu } from "@foxglove/studio-base/components/PanelSettings/ActionMenu";
 import SettingsTreeEditor from "@foxglove/studio-base/components/SettingsTreeEditor";
 import { ShareJsonModal } from "@foxglove/studio-base/components/ShareJsonModal";
@@ -22,6 +28,10 @@ import {
   useCurrentLayoutSelector,
   useSelectedPanels,
 } from "@foxglove/studio-base/context/CurrentLayoutContext";
+import {
+  getExtensionPanelSettings,
+  useExtensionCatalog,
+} from "@foxglove/studio-base/context/ExtensionCatalogContext";
 import { usePanelCatalog } from "@foxglove/studio-base/context/PanelCatalogContext";
 import {
   PanelStateStore,
@@ -31,6 +41,7 @@ import { useAppConfigurationValue } from "@foxglove/studio-base/hooks";
 import { PanelConfig } from "@foxglove/studio-base/types/panels";
 import { TAB_PANEL_TYPE } from "@foxglove/studio-base/util/globalConstants";
 import { getPanelTypeFromId } from "@foxglove/studio-base/util/layout";
+import { maybeCast } from "@foxglove/studio-base/util/maybeCast";
 
 const singlePanelIdSelector = (state: LayoutState) =>
   typeof state.selectedLayout?.data?.layout === "string"
@@ -143,9 +154,34 @@ export default function PanelSettings({
 
   const [config] = useConfigById(selectedPanelId);
 
-  const settingsTree = usePanelStateStore((state) =>
-    selectedPanelId ? state.settingsTrees[selectedPanelId] : undefined,
-  );
+  const extensionSettings = useExtensionCatalog(getExtensionPanelSettings);
+
+  const topicToSchemaNameMap = useMessagePipeline(getTopicToSchemaNameMap);
+
+  const settingsTree = usePanelStateStore((state) => {
+    if (selectedPanelId) {
+      const set = state.settingsTrees[selectedPanelId];
+      if (set && panelType) {
+        const topics = Object.keys(set.nodes.topics?.children ?? {});
+        const topicsConfig = maybeCast<{ topics: Record<string, unknown> }>(config)?.topics;
+        const topicsSettings = _.merge(
+          {},
+          ...topics.map((topic) => {
+            const schemaName = topicToSchemaNameMap[topic];
+            if (schemaName == undefined) {
+              return {};
+            }
+            return {
+              [topic]: extensionSettings[panelType]?.[schemaName]?.settings(topicsConfig?.[topic]),
+            };
+          }),
+        );
+
+        return { ...set, nodes: _.merge({}, set.nodes, { topics: { children: topicsSettings } }) };
+      }
+    }
+    return undefined;
+  });
 
   const resetToDefaults = useCallback(() => {
     if (selectedPanelId) {
